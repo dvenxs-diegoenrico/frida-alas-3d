@@ -263,14 +263,43 @@ export async function buildFrida(base = './', opts = {}) {
     wrap.updateMatrixWorld(true); box = new THREE.Box3().setFromObject(wrap);
     wrap.position.set(-(box.min.x + box.max.x) / 2, TOP_Y - box.max.y, BACK_Z - box.min.z);
     // la orilla inferior (fondo blanco de la imagen de entrada) se disuelve en polvo dorado
-    dissolve = { uCut: { value: -0.49 }, uRootInv: { value: rootInv }, uGlow: { value: new THREE.Color(0xffc861) } };
+    dissolve = { uCut: { value: -0.49 }, uRootInv: { value: rootInv }, uGlow: { value: new THREE.Color(0xffc861) },
+      // movimiento (deformación en el vértice, en coordenadas de la ilustración)
+      uToRoot: { value: new THREE.Matrix4() }, uFromRoot: { value: new THREE.Matrix4() },
+      uHeadRot: { value: new THREE.Matrix3() }, uPivH: { value: new THREE.Vector3(0, -0.14, 0.2) },
+      uArm: { value: 0 }, uBreath: { value: 0 } };
     MODEL.traverse((o) => {
       if (!o.isMesh) return;
       o.renderOrder = 6; o.frustumCulled = false;
       const m = o.material; m.envMapIntensity = .7; m.side = THREE.FrontSide;
       m.onBeforeCompile = (sh) => {
         Object.assign(sh.uniforms, dissolve);
-        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform mat4 uRootInv; varying vec3 vLoc;')
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
+uniform mat4 uRootInv; varying vec3 vLoc;
+uniform mat4 uToRoot; uniform mat4 uFromRoot; uniform mat3 uHeadRot; uniform vec3 uPivH; uniform float uArm; uniform float uBreath;
+float wHead(vec3 p){ return smoothstep(-0.19, -0.09, p.y); }
+float wArm(vec3 p){ return smoothstep(0.235, 0.33, abs(p.x)) * (1.0 - smoothstep(-0.13, -0.07, p.y)) * smoothstep(-0.46, -0.38, p.y); }
+mat2 rot2(float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
+vec3 deformP(vec3 p){
+  float wh = wHead(p);
+  vec3 q = p - uPivH; p = uPivH + mix(q, uHeadRot * q, wh);
+  float wa = wArm(p), sd = sign(p.x);
+  vec2 piv = vec2(sd * 0.26, -0.26);
+  p.xy = piv + rot2(uArm * sd * wa) * (p.xy - piv);
+  float wt = (1.0 - wh) * (1.0 - wa) * smoothstep(-0.62, -0.45, p.y);
+  p.z = uPivH.z + (p.z - uPivH.z) * (1.0 + uBreath * wt);
+  p.x *= 1.0 + uBreath * 0.4 * wt;
+  return p;
+}
+vec3 deformN(vec3 p, vec3 n){
+  float wh = wHead(p); n = normalize(mix(n, uHeadRot * n, wh));
+  float wa = wArm(p); n.xy = rot2(uArm * sign(p.x) * wa) * n.xy; return n;
+}`)
+          .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+{ vec3 pR = (uToRoot * vec4(position, 1.0)).xyz; vec3 nR = normalize(mat3(uToRoot) * objectNormal);
+  objectNormal = normalize(mat3(uFromRoot) * deformN(pR, nR)); }`)
+          .replace('#include <begin_vertex>', `#include <begin_vertex>
+transformed = (uFromRoot * vec4(deformP((uToRoot * vec4(transformed, 1.0)).xyz), 1.0)).xyz;`)
           .replace('#include <project_vertex>', '#include <project_vertex>\nvLoc = (uRootInv * modelMatrix * vec4(transformed, 1.0)).xyz;');
         sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
 uniform float uCut; uniform vec3 uGlow; varying vec3 vLoc;
@@ -285,6 +314,40 @@ gl_FragColor.rgb += uGlow * smoothstep(edge + 0.02, edge, vLoc.y) * 0.9;`);
       };
       m.needsUpdate = true;
     });
+  }
+  // Movimiento de Frida: mirada que sigue a quien mira, asentir, brazos que aletean, respiración
+  const pose = { yaw: 0, pitch: 0, roll: 0, arm: 0 }, eul = new THREE.Euler(), m4h = new THREE.Matrix4(), camL = new THREE.Vector3();
+  let modelMesh = null; if (MODEL) MODEL.traverse((o) => { if (o.isMesh && !modelMesh) modelMesh = o; });
+  function headPoint(p) {                         // aplica el giro de cabeza a un punto (para los destellos)
+    if (!MODEL) return p;
+    const w = THREE.MathUtils.smoothstep(p.y, -0.19, -0.09); if (w <= 0) return p;
+    const pv = dissolve.uPivH.value, q = p.clone().sub(pv), r = q.clone().applyMatrix3(dissolve.uHeadRot.value);
+    return q.lerp(r, w).add(pv);
+  }
+  function animateBody(t, u, cam) {
+    // hacia dónde está la cámara, en coordenadas de la ilustración
+    let tyaw = Math.sin(t * .5) * .12, tpitch = 0;
+    if (cam) {
+      cam.getWorldPosition(camL); root.worldToLocal(camL);
+      const dz = Math.max(.3, camL.z - .2);
+      tyaw = THREE.MathUtils.clamp(Math.atan2(camL.x, dz), -.55, .55);
+      tpitch = THREE.MathUtils.clamp(-Math.atan2(camL.y + .1, dz) * .6, -.3, .3);
+    }
+    // gestos de la historia
+    const nod = Math.exp(-Math.pow((t - 4.5) / .25, 2)) * .16 + Math.exp(-Math.pow((t - 4.95) / .2, 2)) * .1;   // asiente al terminar la frase
+    const proud = clamp((t - T.wings[0]) / 1.2) * (1 - clamp((t - T.wingsClose[0]) / 1.2));                     // mentón arriba con las alas
+    const beat = (t > T.wings[1] - .3 && t < T.wingsClose[0] + .3) ? Math.sin((t - T.wings[1]) * 2.7) : 0;
+    const k = window.__snapPose ? 1 : .08;                 // (__snapPose: solo para pruebas)
+    pose.yaw += (tyaw - pose.yaw) * k;
+    pose.pitch += (tpitch + nod - proud * .14 - pose.pitch) * Math.min(1, k * 1.6);
+    pose.roll += (proud * .1 * Math.sin(t * .8) + Math.sin(t * .37) * .03 - pose.roll) * k;
+    const armTarget = proud * (.2 + .13 * beat);
+    pose.arm += (armTarget - pose.arm) * (window.__snapPose ? 1 : .18);
+    eul.set(pose.pitch * u, pose.yaw * u, pose.roll * u, 'YXZ');
+    dissolve.uHeadRot.value.setFromMatrix4(m4h.makeRotationFromEuler(eul));
+    dissolve.uArm.value = pose.arm * u;
+    dissolve.uBreath.value = .018 * Math.sin(t * 1.7) * u;
+    if (modelMesh) { dissolve.uToRoot.value.copy(rootInv).multiply(modelMesh.matrixWorld); dissolve.uFromRoot.value.copy(dissolve.uToRoot.value).invert(); }
   }
   const ray = new THREE.Raycaster();
   function surfaceZ(pxx, pyy) {                     // z de la superficie del modelo vista de frente
@@ -317,7 +380,7 @@ gl_FragColor.rgb += uGlow * smoothstep(edge + 0.02, edge, vLoc.y) * 0.9;`);
 
   // ---- destellos en el oro ----
   const starMat = new THREE.SpriteMaterial({ map: tex(starTex()), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-  const glints = GLINTS.map(([x, y, t]) => { const s = new THREE.Sprite(starMat.clone()); s.position.copy(px(x, y, surfaceZ(x, y) + .012)); s.renderOrder = 10; s.scale.setScalar(0); root.add(s); return { s, t }; });
+  const glints = GLINTS.map(([x, y, t]) => { const s = new THREE.Sprite(starMat.clone()); const base = px(x, y, surfaceZ(x, y) + .012); s.position.copy(base); s.renderOrder = 10; s.scale.setScalar(0); root.add(s); return { s, t, base }; });
 
   // ---- pétalos ----
   const petalMats = FLOWERS.map(([, , c0, c1]) => new THREE.MeshBasicMaterial({ map: tex(petalTex(c0, c1)), transparent: true, depthWrite: false, side: THREE.DoubleSide }));
@@ -361,13 +424,14 @@ gl_FragColor.rgb += uGlow * smoothstep(edge + 0.02, edge, vLoc.y) * 0.9;`);
      tau: segundos desde que se encontró la ilustración (controla el despliegue)
      t:   segundos de la historia (en loop)                                    */
   let blinkState = 0, petalsOn = false;
-  function update(tau, t) {
+  function update(tau, t, cam) {
     const u = ease(tau / UNFOLD);
     // despliegue: de plano a 3D
     if (MODEL) {
       holder.scale.z = Math.max(1e-3, u);           // de plano a bulto completo
       holder.position.y = .015 * Math.sin(t * 1.1) * u;
       root.updateMatrixWorld(); rootInv.copy(root.matrixWorld).invert();
+      animateBody(t, u, cam);
     } else setRelief(u);
     frameMat.opacity = u;
     bgGroup.position.z = Z.bg * u; bgGroup.scale.setScalar(1 + .14 * u);
@@ -414,7 +478,7 @@ gl_FragColor.rgb += uGlow * smoothstep(edge + 0.02, edge, vLoc.y) * 0.9;`);
     const cq = Math.round(close * 8) / 8; if (!MODEL && cq !== blinkState) { drawBlink(cq); blinkState = cq; }
 
     // destellos
-    for (const g of glints) { const k = (t - g.t) / .7; const s = k > 0 && k < 1 ? Math.sin(k * Math.PI) * .07 : 0; g.s.scale.setScalar(Math.max(1e-4, s * u)); g.s.material.rotation = k * 1.4; }
+    for (const g of glints) { if (MODEL) g.s.position.copy(headPoint(g.base.clone())); const k = (t - g.t) / .7; const s = k > 0 && k < 1 ? Math.sin(k * Math.PI) * .07 : 0; g.s.scale.setScalar(Math.max(1e-4, s * u)); g.s.material.rotation = k * 1.4; }
 
     // pétalos
     for (const p of petals) {
@@ -436,7 +500,7 @@ gl_FragColor.rgb += uGlow * smoothstep(edge + 0.02, edge, vLoc.y) * 0.9;`);
       const pin = easeOut(k / 1.4);
       const p = new THREE.Vector3().copy(b.nest).lerp(orbit, pin);
       const kl = clamp((t - T.leave - b.d * .5) / 1.6);
-      if (kl > 0) p.add(new THREE.Vector3(p.x * 2.2, p.y * 1.2 + .5, .6).multiplyScalar(ease(kl)));
+      if (kl > 0) p.add(new THREE.Vector3(p.x * 2.2, p.y * 1.2 + .5, .3).multiplyScalar(ease(kl)));
       const vel = new THREE.Vector3().subVectors(p, b.prev); b.prev.copy(p);
       b.g.position.copy(p);
       if (vel.lengthSq() > 1e-9) { b.g.rotation.z = Math.atan2(vel.y, vel.x) - Math.PI / 2; b.g.rotation.x = -.35 + clamp(vel.z * 40, -.5, .5); }

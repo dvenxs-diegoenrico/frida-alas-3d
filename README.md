@@ -48,3 +48,15 @@ El GLB original (45.7 MB, 1.47 M triángulos) se optimizó con gltfpack a `asset
 - La orilla inferior del modelo (fondo blanco de la imagen de entrada) se disuelve en polvo dorado con un shader.
 - Se mantienen las alas de monarca 3D, mariposas en órbita (más amplia, para rodear el bulto), braille en relieve, letra dorada, pétalos, polvo dorado y el fondo disuelto en el color de la tela.
 - `?figura=relieve` usa la versión anterior en relieve (sin modelo).
+
+## Movimiento de Frida (sin esqueleto)
+El modelo de IA no tiene rig, así que el movimiento es una deformación en el *vertex shader* (`scene.js`, `deformP`):
+- La **cabeza sigue a la cámara** (a quien mira), con un pivote en el cuello.
+- **Asiente** al terminar de escribirse la frase y **levanta el mentón** cuando se abren las alas.
+- Los **brazos se alzan** y **aletean** al ritmo de las alas; el torso **respira**.
+
+## Rastreo y mareo
+- Filtro One Euro de MindAR: `filterMinCF 0.001`, `filterBeta 500` (antes 0.0001 / 0.001 tenía un retraso enorme).
+  Para afinar en el celular: `?mincf=0.0005&beta=1000` (menos temblor = MinCF más bajo; menos retraso = Beta más alto).
+- Si el estampado se pierde menos de 2.5 s, la historia sigue (ya no se vuelve a desplegar desde cero).
+- En AR se usa `frida-3d-ligero.glb` (59 mil triángulos) y la resolución se limita a 1.5× para dejar cuadros al rastreo.

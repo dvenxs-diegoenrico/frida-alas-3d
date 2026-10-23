@@ -7,13 +7,21 @@ import { buildFrida, CUES, T, LOOP, UNFOLD, W, H, A, loadImg, clamp } from './sc
 
 /* Figura: modelo 3D (por defecto) o relieve (?figura=relieve) */
 const USE_MODEL = new URLSearchParams(location.search).get('figura') !== 'relieve';
-async function loadModel() {
+async function loadModel(light = false) {
   if (!USE_MODEL) return null;
   const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-  const g = await loader.loadAsync('assets/modelo/frida-3d.glb');
+  // en AR va la versión ligera (59 mil triángulos) para no robarle cuadros al rastreo
+  const g = await loader.loadAsync(light ? 'assets/modelo/frida-3d-ligero.glb' : 'assets/modelo/frida-3d.glb');
   return g.scene;
 }
-async function makeFrida() { return buildFrida('./', { model: await loadModel() }); }
+async function makeFrida(light = false) { return buildFrida('./', { model: await loadModel(light) }); }
+
+/* Rastreo: filtro One Euro de MindAR. MinCF bajo = menos temblor; Beta alto = menos retraso.
+   Antes estaba en (0.0001, 0.001): casi sin temblor pero con un retraso enorme, que con contenido
+   que sobresale de la playera se siente como mareo. Se puede afinar en el celular con ?mincf=…&beta=… */
+const QS = new URLSearchParams(location.search);
+const TRACK = { filterMinCF: parseFloat(QS.get('mincf')) || 0.001, filterBeta: parseFloat(QS.get('beta')) || 500, warmupTolerance: 3, missTolerance: 10 };
+const RESTART_AFTER_MS = 2500;   // si se pierde el estampado menos de esto, la historia sigue (no se vuelve a desplegar)
 function addEnvironment(renderer, scene) { scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture; }
 
 const $ = (id) => document.getElementById(id);
@@ -96,7 +104,7 @@ function makeFabricSampler(mindar, anchor) {
   const pts = [[0, -A / 2 - .09], [-.6, 0], [.6, 0], [-.6, -A / 3], [.6, -A / 3]].map(([x, y]) => new THREE.Vector3(x, y, 0));
   const acc = new THREE.Color(), tmp = new THREE.Vector3(); let last = 0, have = false;
   return function sample(frida) {
-    const now = performance.now(); if (now - last < 350) return; last = now;
+    const now = performance.now(); if (now - last < (have ? 1500 : 400)) return; last = now;   // leer píxeles del video frena el cuadro: pocas veces
     const video = mindar.video, cont = $('ar'); if (!video || !video.videoWidth) return;
     const vr = video.getBoundingClientRect(), cr = cont.getBoundingClientRect();
     let r = 0, g = 0, b = 0, n = 0;
@@ -121,15 +129,21 @@ async function startAR() {
   show('intro', false); show('loading');
   const bar = $('loadBar');
   try {
-    const [frida, src] = await Promise.all([makeFrida(), getTargetSrc((p) => { bar.style.width = Math.round(p) + '%'; })]);
+    const [frida, src] = await Promise.all([makeFrida(true), getTargetSrc((p) => { bar.style.width = Math.round(p) + '%'; })]);
     bar.style.width = '100%'; $('loadMsg').textContent = 'Abriendo cámara';
-    const mindar = new MindARThree({ container: $('ar'), imageTargetSrc: src, uiLoading: 'no', uiScanning: 'no', uiError: 'no', filterMinCF: 0.0001, filterBeta: 0.001 });
+    const mindar = new MindARThree({ container: $('ar'), imageTargetSrc: src, uiLoading: 'no', uiScanning: 'no', uiError: 'no', ...TRACK });
     const { renderer, scene, camera } = mindar;
     renderer.outputColorSpace = THREE.SRGBColorSpace; addEnvironment(renderer, scene);
+    renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));   // menos carga = más cuadros para el rastreo
     const anchor = mindar.addAnchor(0); anchor.group.add(frida.root);
     const clock = makeClock(); let visible = false;
-    anchor.onTargetFound = () => { visible = true; clock.restart(); show('scan', false); show('tilt'); setTimeout(() => show('tilt', false), 5200); };
-    anchor.onTargetLost = () => { visible = false; show('scan'); show('tilt', false); $('quote').classList.remove('on'); };
+    let everFound = false, lostAt = 0;
+    anchor.onTargetFound = () => {
+      visible = true; show('scan', false);
+      if (!everFound || performance.now() - lostAt > RESTART_AFTER_MS) { clock.restart(); show('tilt'); setTimeout(() => show('tilt', false), 5200); }
+      everFound = true;
+    };
+    anchor.onTargetLost = () => { visible = false; lostAt = performance.now(); show('scan'); show('tilt', false); $('quote').classList.remove('on'); };
     await mindar.start();
     const sample = makeFabricSampler(mindar, anchor);
     show('loading', false); show('scan'); show('hud');
@@ -137,7 +151,7 @@ async function startAR() {
     $('replay').onclick = () => { initAudio(); clock.restart(); };
     $('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? 'Sin sonido' : 'Sonido'; $('mute').setAttribute('aria-pressed', String(muted)); };
     renderer.setAnimationLoop(() => {
-      if (visible) { const { tau, t } = clock.tick(); frida.update(tau, t); sample(frida); }
+      if (visible) { const { tau, t } = clock.tick(); frida.update(tau, t, camera); sample(frida); }
       renderer.render(scene, camera);
     });
   } catch (e) {
@@ -183,7 +197,7 @@ async function startPreview() {
   $('mute').textContent = 'Activar sonido';
   $('mute').onclick = () => { if (!actx) { initAudio(); $('mute').textContent = 'Sonido'; return; } muted = !muted; $('mute').textContent = muted ? 'Sin sonido' : 'Sonido'; };
   let fixed = null; window.__preview.setView = (yaw, pitch) => { fixed = [yaw, pitch]; };
-  window.__preview.frame = (tau, t) => { frida.update(tau, t); render(); };
+  window.__preview.frame = (tau, t) => { render(true); frida.update(tau, t, camera); render(); };
   function render() {
     const s = performance.now() / 1000;
     const yaw = fixed ? fixed[0] : Math.sin(s * .4) * (USE_MODEL ? .95 : .42) + dragX * 1.2, pitch = fixed ? fixed[1] : Math.sin(s * .31) * .14 - dragY * .5;
@@ -192,7 +206,7 @@ async function startPreview() {
     camera.lookAt(0, 0, .03);
     renderer.render(scene, camera);
   }
-  renderer.setAnimationLoop(() => { if (window.__preview.manual) return; const { tau, t } = clock.tick(); frida.update(tau, t); render(); });
+  renderer.setAnimationLoop(() => { if (window.__preview.manual) return; const { tau, t } = clock.tick(); frida.update(tau, t, camera); render(); });
 }
 
 $('start').addEventListener('click', startAR, { once: true });
