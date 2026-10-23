@@ -155,7 +155,8 @@ function featheredBg(img) {
 }
 
 /* ============================================================ */
-export async function buildFrida(base = './') {
+export async function buildFrida(base = './', opts = {}) {
+  const MODEL = opts.model || null;   // gltf.scene de la Frida 3D (opcional)
   const [target, figura, fondo, prof] = await Promise.all(['target.webp', 'figura.webp', 'fondo.webp', 'profundidad.png'].map((f) => loadImg(base + 'assets/' + f)));
   const root = new THREE.Group();
   const lights = [new THREE.AmbientLight(0xffffff, .65), new THREE.DirectionalLight(0xfff1d6, 1.6)];
@@ -229,6 +230,7 @@ export async function buildFrida(base = './') {
   const wingR = new THREE.Mesh(wingGeo, wingMat), wingL = new THREE.Mesh(wingGeo, wingMat);
   wingR.position.copy(px(...SHOULDER_R, Z.wings)); wingL.position.copy(px(...SHOULDER_L, Z.wings)); wingL.scale.x = -1;
   wingR.renderOrder = wingL.renderOrder = 5; root.add(wingR, wingL);
+  if (MODEL) { wingR.position.z = wingL.position.z = -.035; }
 
   // ---- figura en relieve (malla desplazada por el mapa de profundidad) ----
   const pc = mk(prof.width, prof.height).getContext('2d', { willReadFrequently: true }); pc.drawImage(prof, 0, 0);
@@ -245,6 +247,54 @@ export async function buildFrida(base = './') {
   const figTex = tex(figCanvas);
   const fig = new THREE.Mesh(figGeo, new THREE.MeshBasicMaterial({ map: figTex, alphaTest: .5, side: THREE.DoubleSide }));
   fig.renderOrder = 6; root.add(fig);
+
+  // ---- Frida en bulto (modelo 3D): sale del estampado y se puede rodear ----
+  let holder = null, dissolve = null;
+  const rootInv = new THREE.Matrix4();
+  if (MODEL) {
+    fig.visible = false;
+    holder = new THREE.Group(); root.add(holder);
+    const wrap = new THREE.Group(); holder.add(wrap); wrap.add(MODEL);
+    MODEL.rotation.y = -Math.PI / 2;                  // el modelo viene mirando a +x; lo giro hacia quien mira
+    MODEL.updateMatrixWorld(true);
+    let box = new THREE.Box3().setFromObject(MODEL);
+    const FIG_H = (924 - 70) / W, TOP_Y = A / 2 - 70 / W, BACK_Z = -0.05;
+    const s = FIG_H / (box.max.y - box.min.y); wrap.scale.setScalar(s);
+    wrap.updateMatrixWorld(true); box = new THREE.Box3().setFromObject(wrap);
+    wrap.position.set(-(box.min.x + box.max.x) / 2, TOP_Y - box.max.y, BACK_Z - box.min.z);
+    // la orilla inferior (fondo blanco de la imagen de entrada) se disuelve en polvo dorado
+    dissolve = { uCut: { value: -0.49 }, uRootInv: { value: rootInv }, uGlow: { value: new THREE.Color(0xffc861) } };
+    MODEL.traverse((o) => {
+      if (!o.isMesh) return;
+      o.renderOrder = 6; o.frustumCulled = false;
+      const m = o.material; m.envMapIntensity = .7; m.side = THREE.FrontSide;
+      m.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, dissolve);
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform mat4 uRootInv; varying vec3 vLoc;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvLoc = (uRootInv * modelMatrix * vec4(transformed, 1.0)).xyz;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+uniform float uCut; uniform vec3 uGlow; varying vec3 vLoc;
+float hsh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(hsh(i), hsh(i+vec2(1,0)), f.x), mix(hsh(i+vec2(0,1)), hsh(i+vec2(1,1)), f.x), f.y); }`)
+          .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+float nz = vnoise(vLoc.xz * 34.0) * 0.6 + vnoise(vLoc.xz * 90.0 + 7.0) * 0.4;
+float edge = uCut + nz * 0.07;
+if (vLoc.y < edge) discard;
+gl_FragColor.rgb += uGlow * smoothstep(edge + 0.02, edge, vLoc.y) * 0.9;`);
+      };
+      m.needsUpdate = true;
+    });
+  }
+  const ray = new THREE.Raycaster();
+  function surfaceZ(pxx, pyy) {                     // z de la superficie del modelo vista de frente
+    if (!MODEL) return Z.figBase + depthAt(pxx / W, pyy / H) * Z.figAmp;
+    holder.scale.z = 1; root.updateMatrixWorld(true);
+    const p0 = px(pxx, pyy, 3).applyMatrix4(root.matrixWorld);
+    const dir = new THREE.Vector3(0, 0, -1).transformDirection(root.matrixWorld);
+    ray.set(p0, dir); const hit = ray.intersectObject(MODEL, true)[0];
+    return hit ? root.worldToLocal(hit.point.clone()).z : .05;
+  }
   const zFig = (pxx, pyy) => Z.figBase + depthAt(pxx / W, pyy / H) * Z.figAmp;
   let figU = -1;
   function setRelief(u) {
@@ -267,7 +317,7 @@ export async function buildFrida(base = './') {
 
   // ---- destellos en el oro ----
   const starMat = new THREE.SpriteMaterial({ map: tex(starTex()), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-  const glints = GLINTS.map(([x, y, t]) => { const s = new THREE.Sprite(starMat.clone()); s.position.copy(px(x, y, zFig(x, y) + .01)); s.renderOrder = 10; s.scale.setScalar(0); root.add(s); return { s, t }; });
+  const glints = GLINTS.map(([x, y, t]) => { const s = new THREE.Sprite(starMat.clone()); s.position.copy(px(x, y, surfaceZ(x, y) + .012)); s.renderOrder = 10; s.scale.setScalar(0); root.add(s); return { s, t }; });
 
   // ---- pétalos ----
   const petalMats = FLOWERS.map(([, , c0, c1]) => new THREE.MeshBasicMaterial({ map: tex(petalTex(c0, c1)), transparent: true, depthWrite: false, side: THREE.DoubleSide }));
@@ -275,7 +325,7 @@ export async function buildFrida(base = './') {
   const petals = Array.from({ length: 36 }, (_, i) => {
     const f = FLOWERS[i % FLOWERS.length], m = new THREE.Mesh(petalGeo, petalMats[i % FLOWERS.length].clone());
     m.renderOrder = 8; m.visible = false; root.add(m);
-    return { m, o: px(f[0] + (rnd() - .5) * 40, f[1] + (rnd() - .5) * 26, zFig(f[0], f[1]) + .01), d: rnd() * 5, life: 3.6 + rnd() * 2.4,
+    return { m, o: px(f[0] + (rnd() - .5) * 40, f[1] + (rnd() - .5) * 26, surfaceZ(f[0], f[1]) + .01), d: rnd() * 5, life: 3.6 + rnd() * 2.4,
       v: new THREE.Vector3((rnd() - .5) * .16, .08 + rnd() * .12, .05 + rnd() * .14), sw: .02 + rnd() * .05, ph: rnd() * 6.28,
       r: new THREE.Vector3(rnd() * 6, rnd() * 6, rnd() * 6), vr: new THREE.Vector3((rnd() - .5) * 5, (rnd() - .5) * 5, (rnd() - .5) * 3), s: .7 + rnd() * .7 };
   });
@@ -314,7 +364,11 @@ export async function buildFrida(base = './') {
   function update(tau, t) {
     const u = ease(tau / UNFOLD);
     // despliegue: de plano a 3D
-    setRelief(u);
+    if (MODEL) {
+      holder.scale.z = Math.max(1e-3, u);           // de plano a bulto completo
+      holder.position.y = .015 * Math.sin(t * 1.1) * u;
+      root.updateMatrixWorld(); rootInv.copy(root.matrixWorld).invert();
+    } else setRelief(u);
     frameMat.opacity = u;
     bgGroup.position.z = Z.bg * u; bgGroup.scale.setScalar(1 + .14 * u);
     bgFlat.opacity = 1 - clamp(u * 1.4);          // al inicio coincide exacto con la impresión
@@ -357,7 +411,7 @@ export async function buildFrida(base = './') {
 
     // parpadeo
     let close = 0; for (const tb of T.blinks) { const k = (t - tb) / .2; if (k >= 0 && k <= 1) close = Math.sin(k * Math.PI); }
-    const cq = Math.round(close * 8) / 8; if (cq !== blinkState) { drawBlink(cq); blinkState = cq; }
+    const cq = Math.round(close * 8) / 8; if (!MODEL && cq !== blinkState) { drawBlink(cq); blinkState = cq; }
 
     // destellos
     for (const g of glints) { const k = (t - g.t) / .7; const s = k > 0 && k < 1 ? Math.sin(k * Math.PI) * .07 : 0; g.s.scale.setScalar(Math.max(1e-4, s * u)); g.s.material.rotation = k * 1.4; }
@@ -377,7 +431,8 @@ export async function buildFrida(base = './') {
       b.g.visible = on; if (!on) continue;
       b.nest.copy(px(b.nx, b.ny)).multiplyScalar(bgGroup.scale.x); b.nest.z = bgGroup.position.z + .01;
       const ang = b.ph + b.w * k * 1.1;
-      const orbit = v3.set(Math.cos(ang) * b.rx, b.yc + Math.sin(ang) * b.ry, b.zc + Math.sin(ang * 2 + b.ph) * b.az);
+      const orbit = MODEL ? v3.set(Math.cos(ang) * (b.rx + .2), b.yc + Math.sin(ang) * b.ry, b.zc + .22 + Math.sin(ang * 2 + b.ph) * (b.az + .1))
+        : v3.set(Math.cos(ang) * b.rx, b.yc + Math.sin(ang) * b.ry, b.zc + Math.sin(ang * 2 + b.ph) * b.az);
       const pin = easeOut(k / 1.4);
       const p = new THREE.Vector3().copy(b.nest).lerp(orbit, pin);
       const kl = clamp((t - T.leave - b.d * .5) / 1.6);
@@ -401,7 +456,7 @@ export async function buildFrida(base = './') {
     dustMat.opacity = u * (.25 + .6 * clamp(open)) * (.75 + .25 * Math.sin(t * 3));
   }
 
-  return { root, update, setFabric, fabric };
+  return { root, update, setFabric, fabric, holder, dissolve };
 }
 
 // Señales de sonido de la historia

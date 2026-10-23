@@ -7,10 +7,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const $ = (id) => document.getElementById(id);
-// Archivo local si existe; si no, el que entregó Higgsfield
-const SOURCES = ['assets/modelo/frida-ia.glb', window.FRIDA_GLB_URL].filter(Boolean);
+const SOURCES = ['assets/modelo/frida-3d.glb'];   // versión optimizada para celular
 
 function canvasTex(c) { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
 function talaveraTex() {
@@ -60,9 +60,11 @@ async function main() {
   const key = new THREE.DirectionalLight(0xfff0d8, 1.6); key.position.set(1.2, 1.6, 2); scene.add(key);
   const rim = new THREE.DirectionalLight(0x9fc0ff, 1.0); rim.position.set(-1.5, .8, -2); scene.add(rim);
 
-  const gltf = await loadFirst(new GLTFLoader());
-  const model = gltf.scene;
+  const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+  const gltf = await loadFirst(loader);
+  let model = gltf.scene; model.rotation.y = -Math.PI / 2; model.updateMatrixWorld(true);  // de frente
   // Normaliza: alto 1.33 (como la figura por código), centrada, pies en la base
+  const inner = model; model = new THREE.Group(); model.add(inner);
   const box = new THREE.Box3().setFromObject(model), size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
   const k = 1.33 / size.y; model.scale.setScalar(k);
   model.position.set(-center.x * k, -box.min.y * k, -center.z * k);

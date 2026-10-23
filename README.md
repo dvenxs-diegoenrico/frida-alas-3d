@@ -39,5 +39,12 @@ Frida como figura de bulto sobre una base de talavera poblana, modelada por cód
 
 ## Prueba: figura 3D con IA (`modelo-ia.html`)
 Modelo generado con **Tripo H3.1 vía Higgsfield** (9 créditos, calidad estándar, textura + PBR) desde `assets/modelo/entrada-ia.png`.
-El archivo GLB vive en el CDN de Higgsfield; `vercel.json` lo sirve en `/assets/modelo/frida-ia.glb` para que cargue desde el mismo dominio.
-Si en algún momento ese enlace deja de funcionar, descarga el GLB desde Higgsfield y guárdalo en `assets/modelo/frida-ia.glb` (el visor lo prefiere).
+El GLB original (45.7 MB, 1.47 M triángulos) se optimizó con gltfpack a `assets/modelo/frida-3d.glb`:
+~103 mil triángulos, texturas a 1024 px y compresión meshopt (0.96 MB). Requiere `MeshoptDecoder` en el `GLTFLoader`.
+
+## Experiencia AR con Frida en bulto (por defecto en `index.html`)
+- Al escanear, la ilustración plana se **infla hasta un bulto 3D completo** que sale de la playera hacia quien mira.
+- Como el modelo tiene volumen real, **al moverte a los lados ves a Frida de perfil**, y en ángulos extremos, su espalda (chongo de trenzas y rebozo).
+- La orilla inferior del modelo (fondo blanco de la imagen de entrada) se disuelve en polvo dorado con un shader.
+- Se mantienen las alas de monarca 3D, mariposas en órbita (más amplia, para rodear el bulto), braille en relieve, letra dorada, pétalos, polvo dorado y el fondo disuelto en el color de la tela.
+- `?figura=relieve` usa la versión anterior en relieve (sin modelo).

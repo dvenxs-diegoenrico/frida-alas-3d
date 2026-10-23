@@ -1,6 +1,20 @@
 import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildFrida, CUES, T, LOOP, UNFOLD, W, H, A, loadImg, clamp } from './scene.js';
+
+/* Figura: modelo 3D (por defecto) o relieve (?figura=relieve) */
+const USE_MODEL = new URLSearchParams(location.search).get('figura') !== 'relieve';
+async function loadModel() {
+  if (!USE_MODEL) return null;
+  const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+  const g = await loader.loadAsync('assets/modelo/frida-3d.glb');
+  return g.scene;
+}
+async function makeFrida() { return buildFrida('./', { model: await loadModel() }); }
+function addEnvironment(renderer, scene) { scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture; }
 
 const $ = (id) => document.getElementById(id);
 const show = (id, on = true) => { $(id).hidden = !on; };
@@ -107,11 +121,11 @@ async function startAR() {
   show('intro', false); show('loading');
   const bar = $('loadBar');
   try {
-    const [frida, src] = await Promise.all([buildFrida(), getTargetSrc((p) => { bar.style.width = Math.round(p) + '%'; })]);
+    const [frida, src] = await Promise.all([makeFrida(), getTargetSrc((p) => { bar.style.width = Math.round(p) + '%'; })]);
     bar.style.width = '100%'; $('loadMsg').textContent = 'Abriendo cámara';
     const mindar = new MindARThree({ container: $('ar'), imageTargetSrc: src, uiLoading: 'no', uiScanning: 'no', uiError: 'no', filterMinCF: 0.0001, filterBeta: 0.001 });
     const { renderer, scene, camera } = mindar;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.outputColorSpace = THREE.SRGBColorSpace; addEnvironment(renderer, scene);
     const anchor = mindar.addAnchor(0); anchor.group.add(frida.root);
     const clock = makeClock(); let visible = false;
     anchor.onTargetFound = () => { visible = true; clock.restart(); show('scan', false); show('tilt'); setTimeout(() => show('tilt', false), 5200); };
@@ -138,16 +152,16 @@ async function startAR() {
    Simula la playera y el estampado plano; la cámara oscila para mostrar la profundidad. */
 async function startPreview() {
   show('intro', false); show('loading'); $('loadMsg').textContent = 'Cargando la escena';
-  const frida = await buildFrida();
+  const frida = await makeFrida();
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); renderer.outputColorSpace = THREE.SRGBColorSpace;
   $('ar').appendChild(renderer.domElement);
-  const scene = new THREE.Scene();
+  const scene = new THREE.Scene(); addEnvironment(renderer, scene);
   const camera = new THREE.PerspectiveCamera(42, 1, .01, 20);
   // "mundo real": tela y estampado impreso
   const print = await loadImg('assets/target.webp');
   const ptex = new THREE.Texture(print); ptex.colorSpace = THREE.SRGBColorSpace; ptex.needsUpdate = true;
-  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.MeshBasicMaterial({ color: frida.fabric.clone(), depthWrite: false }));
+  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ color: frida.fabric.clone(), depthWrite: false }));
   const flat = new THREE.Mesh(new THREE.PlaneGeometry(1, A), new THREE.MeshBasicMaterial({ map: ptex, depthWrite: false }));
   cloth.renderOrder = -20; flat.renderOrder = -19; cloth.position.z = flat.position.z = -.001;
   scene.add(cloth, flat, frida.root);
@@ -172,7 +186,7 @@ async function startPreview() {
   window.__preview.frame = (tau, t) => { frida.update(tau, t); render(); };
   function render() {
     const s = performance.now() / 1000;
-    const yaw = fixed ? fixed[0] : Math.sin(s * .45) * .42 + dragX * .6, pitch = fixed ? fixed[1] : Math.sin(s * .31) * .14 - dragY * .4;
+    const yaw = fixed ? fixed[0] : Math.sin(s * .4) * (USE_MODEL ? .95 : .42) + dragX * 1.2, pitch = fixed ? fixed[1] : Math.sin(s * .31) * .14 - dragY * .5;
     const d = camera.userData.d;
     camera.position.set(Math.sin(yaw) * Math.cos(pitch) * d, Math.sin(pitch) * d, Math.cos(yaw) * Math.cos(pitch) * d);
     camera.lookAt(0, 0, .03);
