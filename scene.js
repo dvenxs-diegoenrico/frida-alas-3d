@@ -172,7 +172,7 @@ export async function buildFrida(base = './') {
   const bgGroup = new THREE.Group(); root.add(bgGroup);
   const bgMat = new THREE.MeshBasicMaterial({ map: tex(featheredBg(fondo)), transparent: true, depthWrite: false });
   const bg = new THREE.Mesh(new THREE.PlaneGeometry(1, A), bgMat); bg.renderOrder = 0; bgGroup.add(bg);
-  const bgFlat = new THREE.MeshBasicMaterial({ map: texImg(fondo), transparent: true, depthWrite: false, opacity: 1 });
+  const bgFlat = new THREE.MeshBasicMaterial({ map: texImg(target), transparent: true, depthWrite: false, opacity: 1 });
   const bgFlatMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, A), bgFlat); bgFlatMesh.renderOrder = 0; bgFlatMesh.position.z = .0005; bgFlatMesh.renderOrder = 0.5; bgGroup.add(bgFlatMesh);
 
   // ---- braille en relieve: esferas doradas ----
