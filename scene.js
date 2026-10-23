@@ -51,7 +51,7 @@ function flowerMotif(c, x, y, r, col) {
   c.fillStyle = '#f6c544'; c.beginPath(); c.arc(x, y, r * .25, 0, 6.28); c.fill();
 }
 // Ala de monarca bordada; pivote en (0,0), se extiende hacia +x
-function drawWing(c) {
+export function drawWing(c) {
   const fw = new Path2D();
   fw.moveTo(0, 0); fw.bezierCurveTo(70, -170, 270, -330, 470, -300); fw.bezierCurveTo(520, -290, 535, -250, 505, -205); fw.bezierCurveTo(440, -90, 300, -10, 0, 18); fw.closePath();
   const hw = new Path2D();

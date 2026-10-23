@@ -29,3 +29,10 @@ Demo sin cámara: botón "Ver en 3D sin cámara" o agrega `#preview` al link. Se
 Con el PSD o los PNG por capas se reemplazan `figura.webp` y `fondo.webp` por capas limpias y se ajusta `profundidad.png` por elemento. Así desaparecen los bordes de recorte y el relleno aproximado del fondo.
 
 Sitio estático: no requiere build.
+
+## Prueba: figura 3D por código (`modelo.html`)
+Frida como figura de bulto sobre una base de talavera poblana, modelada por código (sin IA ni créditos):
+- El volumen se "infla" desde la silueta del dibujo (`assets/modelo/altura_frente.png` y `altura_espalda.png`); la cabeza, la cara y la corona tienen su propio volumen.
+- El frente usa la ilustración original; la espalda es una interpretación (trenzas en chongo y rebozo) en `assets/modelo/espalda.webp`.
+- Acabado de resina laqueada; alas de monarca opcionales con aleteo.
+- Botones: Girar, Frente, Perfil, Espalda, Alas. Se puede arrastrar para rodearla.
