@@ -28,6 +28,7 @@ nav{position:fixed;z-index:5;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap
   padding:12px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 button{font:600 12px var(--body);letter-spacing:.1em;text-transform:uppercase;border-radius:999px;padding:11px 16px;cursor:pointer;
   background:rgba(10,18,44,.55);color:var(--cal);border:1px solid rgba(247,241,230,.3);backdrop-filter:blur(6px)}
+.btn{font:600 12px var(--body);letter-spacing:.1em;text-transform:uppercase;border-radius:999px;padding:11px 16px;text-decoration:none;background:rgba(10,18,44,.55);color:var(--cal);border:1px solid rgba(247,241,230,.3);backdrop-filter:blur(6px)}
 button[aria-pressed="true"]{background:var(--cal);color:#10162a}
 button:focus-visible,a:focus-visible{outline:2px solid var(--oro);outline-offset:3px}
 a{color:var(--cal)}
@@ -55,6 +56,7 @@ a{color:var(--cal)}
   <button id="side">Perfil</button>
   <button id="back">Espalda</button>
   <button id="alas" aria-pressed="false">Alas</button>
+  <a class="btn" href="modelo-ia.html">Ver versión con IA</a>
 </nav>
 <script type="module" src="modelo.js"></script>
 </body>

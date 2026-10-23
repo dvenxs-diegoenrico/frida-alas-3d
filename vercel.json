@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/assets/modelo/frida-ia.glb", "destination": "https://d8j0ntlcm91z4.cloudfront.net/user_3HBjPCpIcuu9n0YH7SeWU1t2hMY/hf_20261023_214050_445a8e4c-01e4-4511-9a94-9fbac1eb9bc5.glb" }
+  ],
+  "headers": [
+    { "source": "/assets/modelo/(.*)\\.glb", "headers": [{ "key": "Content-Type", "value": "model/gltf-binary" }] }
+  ]
+}

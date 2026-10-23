@@ -36,3 +36,8 @@ Frida como figura de bulto sobre una base de talavera poblana, modelada por cód
 - El frente usa la ilustración original; la espalda es una interpretación (trenzas en chongo y rebozo) en `assets/modelo/espalda.webp`.
 - Acabado de resina laqueada; alas de monarca opcionales con aleteo.
 - Botones: Girar, Frente, Perfil, Espalda, Alas. Se puede arrastrar para rodearla.
+
+## Prueba: figura 3D con IA (`modelo-ia.html`)
+Modelo generado con **Tripo H3.1 vía Higgsfield** (9 créditos, calidad estándar, textura + PBR) desde `assets/modelo/entrada-ia.png`.
+El archivo GLB vive en el CDN de Higgsfield; `vercel.json` lo sirve en `/assets/modelo/frida-ia.glb` para que cargue desde el mismo dominio.
+Si en algún momento ese enlace deja de funcionar, descarga el GLB desde Higgsfield y guárdalo en `assets/modelo/frida-ia.glb` (el visor lo prefiere).
