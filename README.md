@@ -63,11 +63,11 @@ El filtro de MindAR suaviza la pose **elemento por elemento** de la matriz: la m
   con predicción de velocidad (alfa-beta) y se recompone **rígida** con escala uniforme.
 - Entre poses del rastreo (15–30 fps) se interpola con la velocidad para que a 60 fps no dé saltos.
 - Cámara a 1280×720 (más precisión), resolución de dibujo 1.5×, modelo ligero en AR.
-- Afinación por URL: `?rmin=0.3&rbeta=6&pmin=0.7&zmin=0.35`; `?debug=1` muestra fps y velocidades; `?res=sd` usa la cámara normal.
+- Afinación por URL: `?rmin=0.25&rbeta=9&pmin=1&zmin=0.35&zbeta=6`; `?debug=1` muestra fps y velocidades; `?res=sd` usa la cámara normal.
 
 Simulación (rastreo 20 fps, pantalla 60 fps, punto al frente del bulto):
 | | temblor por cuadro | retraso al rodear | torcedura |
 |---|---|---|---|
 | MindAR (0.001, 500) | 0.21 % | 1.1–1.6 % | sí |
 | MindAR (0.0001, 0.001) | 0.015 % | 7–11.5 % | sí |
-| estabilizador | 0.066 % | 0.95–1.9 % | no |
+| estabilizador | 0.068 % | 1.0–1.6 % | no |
