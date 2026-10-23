@@ -300,7 +300,7 @@ vec3 deformN(vec3 p, vec3 n){
   objectNormal = normalize(mat3(uFromRoot) * deformN(pR, nR)); }`)
           .replace('#include <begin_vertex>', `#include <begin_vertex>
 transformed = (uFromRoot * vec4(deformP((uToRoot * vec4(transformed, 1.0)).xyz), 1.0)).xyz;`)
-          .replace('#include <project_vertex>', '#include <project_vertex>\nvLoc = (uRootInv * modelMatrix * vec4(transformed, 1.0)).xyz;');
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvLoc = (uToRoot * vec4(transformed, 1.0)).xyz;');   // independiente de la pose: el borde disuelto no tiembla
         sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
 uniform float uCut; uniform vec3 uGlow; varying vec3 vLoc;
 float hsh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }

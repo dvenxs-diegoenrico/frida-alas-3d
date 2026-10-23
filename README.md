@@ -55,8 +55,19 @@ El modelo de IA no tiene rig, así que el movimiento es una deformación en el *
 - **Asiente** al terminar de escribirse la frase y **levanta el mentón** cuando se abren las alas.
 - Los **brazos se alzan** y **aletean** al ritmo de las alas; el torso **respira**.
 
-## Rastreo y mareo
-- Filtro One Euro de MindAR: `filterMinCF 0.001`, `filterBeta 500` (antes 0.0001 / 0.001 tenía un retraso enorme).
-  Para afinar en el celular: `?mincf=0.0005&beta=1000` (menos temblor = MinCF más bajo; menos retraso = Beta más alto).
-- Si el estampado se pierde menos de 2.5 s, la historia sigue (ya no se vuelve a desplegar desde cero).
-- En AR se usa `frida-3d-ligero.glb` (59 mil triángulos) y la resolución se limita a 1.5× para dejar cuadros al rastreo.
+## Rastreo estable (sin temblor, sin deformación)
+El filtro de MindAR suaviza la pose **elemento por elemento** de la matriz: la matriz deja de ser rígida
+(estiramiento/torcedura) y obliga a escoger entre temblor y retraso. Ahora:
+- El filtro de MindAR va apagado (`MINDAR_PASSTHROUGH`) y la escena cuelga de `estabilizador.js`.
+- La pose se separa en rotación, posición lateral, profundidad y escala; cada una con filtro adaptativo
+  con predicción de velocidad (alfa-beta) y se recompone **rígida** con escala uniforme.
+- Entre poses del rastreo (15–30 fps) se interpola con la velocidad para que a 60 fps no dé saltos.
+- Cámara a 1280×720 (más precisión), resolución de dibujo 1.5×, modelo ligero en AR.
+- Afinación por URL: `?rmin=0.3&rbeta=6&pmin=0.7&zmin=0.35`; `?debug=1` muestra fps y velocidades; `?res=sd` usa la cámara normal.
+
+Simulación (rastreo 20 fps, pantalla 60 fps, punto al frente del bulto):
+| | temblor por cuadro | retraso al rodear | torcedura |
+|---|---|---|---|
+| MindAR (0.001, 500) | 0.21 % | 1.1–1.6 % | sí |
+| MindAR (0.0001, 0.001) | 0.015 % | 7–11.5 % | sí |
+| estabilizador | 0.066 % | 0.95–1.9 % | no |
