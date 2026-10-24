@@ -1,0 +1,58 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>track bench</title>
+<script type="importmap">{"imports":{"three":"../three/build/three.module.js"}}</script>
+</head>
+<body>
+<script type="module">
+import { Controller, Compiler } from '../mindar-dist/mindar-image.prod.js';
+import { refinePose } from './variants/v_ref.js';
+
+const loadImg = (src) => new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = src; });
+
+async function getTarget() {
+  const r = await fetch('targets.mind');
+  if (r.ok) return await r.arrayBuffer();
+  const img = await loadImg('target.webp');
+  const c = new Compiler();
+  await c.compileImageTargets([img], () => {});
+  const data = await c.exportData();
+  const u8 = new Uint8Array(data); let s = '';
+  for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+  window.__mind = btoa(s);
+  return data.buffer ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) : data;
+}
+
+window.runTrack = async (dir) => {
+  const gt = await (await fetch(dir + '/gt.json')).json();
+  const { W, H } = gt;
+  const buf = await getTarget();
+  const ctrl = new Controller({ inputWidth: W, inputHeight: H, filterMinCF: 1000, filterBeta: 0, warmupTolerance: 3, missTolerance: 8 });
+  ctrl.addImageTargetsFromBuffer(buf);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d', { willReadFrequently: false });
+  ctx.fillStyle = '#222'; ctx.fillRect(0, 0, W, H);
+  ctrl.dummyRun(cv);
+  const out = []; let mvt = null; const t0 = performance.now(); let nTrack = 0, tTrack = 0;
+  for (const e of gt.sched) {
+    const img = await loadImg(`${dir}/f_${String(e.c).padStart(4, '0')}.jpg`);
+    ctx.drawImage(img, 0, 0);
+    if (!mvt) {
+      const { featurePoints } = await ctrl.detect(cv);
+      const m = await ctrl.match(featurePoints, 0);
+      if (m.modelViewTransform) mvt = m.modelViewTransform;
+    } else {
+      const ta = performance.now();
+      const tr = await ctrl.track(cv, mvt, 0);
+      if (window.__keepPts) (window.__pts ||= [])[out.length] = { w: tr.worldCoords, s: tr.screenCoords, proj: ctrl.projectionTransform };
+      let m2 = await ctrl.trackUpdate(mvt, tr);
+      if (m2 && window.__refine) m2 = refinePose(m2, tr.worldCoords, tr.screenCoords, ctrl.projectionTransform) || m2;
+      tTrack += performance.now() - ta; nTrack++;
+      mvt = m2;   // null = perdido
+    }
+    out.push(mvt ? ctrl.getWorldMatrix(mvt, 0) : null);
+  }
+  return { raw: out, dims: ctrl.markerDimensions[0], ms: performance.now() - t0, trackMs: tTrack / Math.max(1, nTrack) };
+};
+window.__ready = true;
+</script>
+</body></html>

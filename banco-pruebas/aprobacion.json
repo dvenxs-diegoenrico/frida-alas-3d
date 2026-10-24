@@ -1,0 +1,182 @@
+[
+ {
+  "corrida": "c51",
+  "escena": "acercar",
+  "pasa": true,
+  "puntaje": 0.36,
+  "temblor": 1.43,
+  "temblorOraculo": 1.72,
+  "mapeo": 3.43
+ },
+ {
+  "corrida": "c51",
+  "escena": "lento",
+  "pasa": true,
+  "puntaje": 0.31,
+  "temblor": 1.28,
+  "temblorOraculo": 1.67,
+  "mapeo": 3.23
+ },
+ {
+  "corrida": "c51",
+  "escena": "quieto",
+  "pasa": true,
+  "puntaje": -0.24,
+  "temblor": 1.21,
+  "temblorOraculo": 1.52,
+  "mapeo": 2.44
+ },
+ {
+  "corrida": "c51",
+  "escena": "rapido",
+  "pasa": true,
+  "puntaje": 0.42,
+  "temblor": 1.92,
+  "temblorOraculo": 2.8,
+  "mapeo": 5.29
+ },
+ {
+  "corrida": "c51",
+  "escena": "tripode",
+  "pasa": true,
+  "puntaje": 0.68,
+  "temblor": 0.2,
+  "temblorOraculo": 0.15,
+  "mapeo": 1.35
+ },
+ {
+  "corrida": "c52",
+  "escena": "acercar",
+  "pasa": true,
+  "puntaje": -0.29,
+  "temblor": 1.42,
+  "temblorOraculo": 1.74,
+  "mapeo": 3.65
+ },
+ {
+  "corrida": "c52",
+  "escena": "lento",
+  "pasa": true,
+  "puntaje": 0.41,
+  "temblor": 1.39,
+  "temblorOraculo": 1.67,
+  "mapeo": 3.2
+ },
+ {
+  "corrida": "c52",
+  "escena": "quieto",
+  "pasa": true,
+  "puntaje": -0.27,
+  "temblor": 1.33,
+  "temblorOraculo": 1.54,
+  "mapeo": 2.52
+ },
+ {
+  "corrida": "c52",
+  "escena": "rapido",
+  "pasa": true,
+  "puntaje": 0.29,
+  "temblor": 1.78,
+  "temblorOraculo": 2.56,
+  "mapeo": 5.6
+ },
+ {
+  "corrida": "c52",
+  "escena": "tripode",
+  "pasa": true,
+  "puntaje": 0.89,
+  "temblor": 0.23,
+  "temblorOraculo": 0.15,
+  "mapeo": 0.93
+ },
+ {
+  "corrida": "c53",
+  "escena": "acercar",
+  "pasa": true,
+  "puntaje": 0.02,
+  "temblor": 1.5,
+  "temblorOraculo": 1.77,
+  "mapeo": 3.44
+ },
+ {
+  "corrida": "c53",
+  "escena": "lento",
+  "pasa": true,
+  "puntaje": 0.72,
+  "temblor": 1.6,
+  "temblorOraculo": 1.73,
+  "mapeo": 3.57
+ },
+ {
+  "corrida": "c53",
+  "escena": "quieto",
+  "pasa": true,
+  "puntaje": -0.1,
+  "temblor": 1.35,
+  "temblorOraculo": 1.62,
+  "mapeo": 2.59
+ },
+ {
+  "corrida": "c53",
+  "escena": "rapido",
+  "pasa": true,
+  "puntaje": 0.39,
+  "temblor": 2.03,
+  "temblorOraculo": 2.8,
+  "mapeo": 5.2
+ },
+ {
+  "corrida": "c53",
+  "escena": "tripode",
+  "pasa": true,
+  "puntaje": 0.66,
+  "temblor": 0.2,
+  "temblorOraculo": 0.16,
+  "mapeo": 1.32
+ },
+ {
+  "corrida": "c54",
+  "escena": "acercar",
+  "pasa": true,
+  "puntaje": -0.55,
+  "temblor": 1.47,
+  "temblorOraculo": 1.75,
+  "mapeo": 2.96
+ },
+ {
+  "corrida": "c54",
+  "escena": "lento",
+  "pasa": true,
+  "puntaje": 0.75,
+  "temblor": 1.32,
+  "temblorOraculo": 1.65,
+  "mapeo": 3.28
+ },
+ {
+  "corrida": "c54",
+  "escena": "quieto",
+  "pasa": true,
+  "puntaje": 0.06,
+  "temblor": 1.28,
+  "temblorOraculo": 1.54,
+  "mapeo": 2.61
+ },
+ {
+  "corrida": "c54",
+  "escena": "rapido",
+  "pasa": true,
+  "puntaje": 0.61,
+  "temblor": 1.91,
+  "temblorOraculo": 2.73,
+  "mapeo": 5.76
+ },
+ {
+  "corrida": "c54",
+  "escena": "tripode",
+  "pasa": true,
+  "puntaje": 0.63,
+  "temblor": 0.19,
+  "temblorOraculo": 0.15,
+  "mapeo": 1.3
+ }
+]

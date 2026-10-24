@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildFrida, CUES, T, LOOP, UNFOLD, W, H, A, loadImg, clamp } from './scene.js';
-import { makeStabilizer, MINDAR_PASSTHROUGH, preferHDCamera, makeDebug } from './estabilizador.js';
+import { makeStabilizer, MINDAR_PASSTHROUGH, preferHDCamera, makeDebug, attachPoseRefiner } from './estabilizador.js';
 
 /* Figura: modelo 3D (por defecto) o relieve (?figura=relieve) */
 const USE_MODEL = new URLSearchParams(location.search).get('figura') !== 'relieve';
@@ -17,9 +17,10 @@ async function loadModel(light = false) {
 }
 async function makeFrida(light = false) { return buildFrida('./', { model: await loadModel(light) }); }
 
-/* Rastreo: el filtro de MindAR (por elemento de la matriz) deformaba el contenido 3D y obligaba a
-   escoger entre temblor y retraso. Queda apagado y la pose pasa por el estabilizador rígido
-   (estabilizador.js), que filtra rotación, posición y profundidad por separado y predice entre poses. */
+/* Rastreo (medido con el rastreador real de MindAR, ver estabilizador.js):
+   1) la pose de MindAR no es rígida y a veces se atora varios grados → se recalcula con sus propios puntos;
+   2) su filtro (por elemento de la matriz) deformaba y obligaba a escoger entre temblor y retraso → apagado;
+   3) estabilizador por partes: la inclinación (lo ruidoso) se filtra fuerte, lo preciso casi nada. */
 const RESTART_AFTER_MS = 2500;   // si se pierde el estampado menos de esto, la historia sigue (no se vuelve a desplegar)
 function addEnvironment(renderer, scene) { scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture; }
 
@@ -147,6 +148,7 @@ async function startAR() {
     anchor.onTargetLost = () => { visible = false; lostAt = performance.now(); show('scan'); show('tilt', false); $('quote').classList.remove('on'); };
     preferHDCamera();
     await mindar.start();
+    attachPoseRefiner(mindar);   // desde el siguiente cuadro, MindAR rastrea con la pose recalculada
     const sample = makeFabricSampler(mindar, stab.group);
     show('loading', false); show('scan'); show('hud');
     wireFabric(frida);

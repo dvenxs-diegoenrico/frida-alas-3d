@@ -56,18 +56,32 @@ El modelo de IA no tiene rig, así que el movimiento es una deformación en el *
 - Los **brazos se alzan** y **aletean** al ritmo de las alas; el torso **respira**.
 
 ## Rastreo estable (sin temblor, sin deformación)
-El filtro de MindAR suaviza la pose **elemento por elemento** de la matriz: la matriz deja de ser rígida
-(estiramiento/torcedura) y obliga a escoger entre temblor y retraso. Ahora:
-- El filtro de MindAR va apagado (`MINDAR_PASSTHROUGH`) y la escena cuelga de `estabilizador.js`.
-- La pose se separa en rotación, posición lateral, profundidad y escala; cada una con filtro adaptativo
-  con predicción de velocidad (alfa-beta) y se recompone **rígida** con escala uniforme.
-- Entre poses del rastreo (15–30 fps) se interpola con la velocidad para que a 60 fps no dé saltos.
-- Cámara a 1280×720 (más precisión), resolución de dibujo 1.5×, modelo ligero en AR.
-- Afinación por URL: `?rmin=0.25&rbeta=9&pmin=1&zmin=0.35&zbeta=6`; `?debug=1` muestra fps y velocidades; `?res=sd` usa la cámara normal.
+Medido con el **rastreador real de MindAR** sobre video sintético de la ilustración impresa (cámara en mano
+con pulso, ruido de sensor, desenfoque y compresión; 5 escenas: fijo, en mano, rodear lento, rodear rápido,
+acercar/alejar). Se encontraron tres problemas:
 
-Simulación (rastreo 20 fps, pantalla 60 fps, punto al frente del bulto):
-| | temblor por cuadro | retraso al rodear | torcedura |
+1. **La pose de MindAR no es rígida y a veces se atora.** Su matriz trae ~3 % de estiramiento/torcedura
+   (el bulto 3D se deforma) y su refinamiento arranca de la pose anterior: al rodear despacio llega a quedar
+   4–10° inclinado. → `attachPoseRefiner()` recalcula la pose con los mismos ~29 puntos que MindAR rastreó
+   (rotación verdadera + mínimos cuadrados robustos) y se la devuelve para que siga rastreando desde ahí.
+   Error de inclinación en el peor caso: 3.8° → 0.7°.
+2. **Casi todo el ruido está en la inclinación** (±0.6–1.1° por cuadro); giro en el plano (±0.14°), posición
+   lateral (±0.25 px) y profundidad (±0.15 %) son precisos. El filtro anterior suavizaba todo igual: no
+   quitaba el ruido de inclinación y despegaba a Frida de la playera al acercarse (hasta 10 px).
+   → `estabilizador.js`: un filtro de Kalman por parte; la inclinación se filtra fuerte, lo demás casi nada,
+   con detector de movimiento que abre el filtro al moverse.
+3. **Pedir cámara HD no ayuda**: 640×480 da el mismo ruido y rastrea al doble de velocidad. Ya no se pide
+   (`?res=hd` la vuelve a pedir).
+
+Resultados en 4 corridas nuevas (no usadas para afinar), px de un celular de 390×844:
+
+| | temblor de la cara (fijo) | mapeo (en mano) | cara fuera de lugar (en mano) |
 |---|---|---|---|
-| MindAR (0.001, 500) | 0.21 % | 1.1–1.6 % | sí |
-| MindAR (0.0001, 0.001) | 0.015 % | 7–11.5 % | sí |
-| estabilizador | 0.068 % | 1.0–1.6 % | no |
+| MindAR con su filtro | 1.27 | 2.9–4.6 | 4.4–8.7 |
+| versión anterior | 0.32 | 5.2–10.0 | 5.4–9.5 |
+| **actual** | **0.20** | **2.5–5.5** | **3.1–7.7** |
+
+En mano queda ~1.3 px de vibración relativa: es el pulso de la mano (>10 Hz), que ni un rastreador perfecto
+a 20 cuadros/s puede seguir. Afinación por URL: `?tq=` `?tqmax=` `?wq=` `?lq=` `?dq=` `?man=` `?lead=` `?suave=`;
+`?refinar=0` apaga el recálculo; `?debug=1` muestra fps de pantalla y de rastreo, si la pose es recalculada
+y el ruido de inclinación medido.
